@@ -1,0 +1,46 @@
+[Unit]
+Description=Kev-4B Decision API Server (GCE N1 + Tesla T4 Spot VM)
+After=network.target local-fs.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kev
+Group=kev
+WorkingDirectory=/opt/kev
+
+# Colab T4 で検証済みの環境変数
+Environment="PATH=/opt/kev/.venv/bin:/usr/local/cuda/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+Environment="KEV_DTYPE=fp16"
+Environment="KEV_CUDA_GRAPHS=0"
+Environment="KEV_PREFIX_CACHE=8"
+
+# startup.sh が事前取得した重みを使う。外部IP除去後(NATなし)でも Hub へ接続しにいかない
+Environment="HF_HOME=/opt/kev/.cache/huggingface"
+Environment="HF_HUB_OFFLINE=1"
+
+# KEV_API_KEY (startup.sh が /etc/kev/kev.env に root:kev 0640 で作成)
+EnvironmentFile=/etc/kev/kev.env
+
+# 最終呼び出しから15分で VM ごと停止する
+ExecStart=/opt/kev/.venv/bin/python -m deploy.gce.server --host 0.0.0.0 --port 8008 --run jaredpalmer/kev-4b --dtype fp16 --idle_shutdown_min 15
+
+# Spot プリエンプションの猶予は30秒。TimeoutStopSec=25 で in-flight を待つ
+TimeoutStopSec=25s
+KillSignal=SIGTERM
+SendSIGKILL=yes
+
+# 異常終了時は再起動する。アイドル停止は VM の poweroff なので、この設定とは干渉しない
+Restart=always
+RestartSec=5s
+
+LimitNOFILE=65535
+LimitMEMLOCK=infinity
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kev-serve
+
+[Install]
+WantedBy=multi-user.target

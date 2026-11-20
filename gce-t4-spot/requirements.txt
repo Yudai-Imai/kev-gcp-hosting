@@ -1,0 +1,17 @@
+# Kev-4B (GCE N1 + Tesla T4, FP16) 用の依存関係。
+# torch / transformers の範囲は kev 本体の pyproject.toml に合わせている。
+# 実機での固定版は初回構築後に `uv pip freeze` で取得して置き換えること。
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+torch>=2.6,<2.9
+transformers>=5.17,<6
+accelerate>=1.15.0
+peft>=0.21.0
+# torchao は kev が使わず、最新版は torch 2.8 以下と非互換(transformers が読み込んで起動時にクラッシュする)ため入れない
+
+# API サーバー
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0
+pydantic>=2.9.0
+typesafe-sdk>=0.6.0
+numpy>=1.26.0

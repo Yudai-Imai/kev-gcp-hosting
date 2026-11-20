@@ -1,0 +1,59 @@
+--- a/kev/serve.py
++++ b/kev/serve.py
+@@ -242,10 +242,27 @@
+     return resp
+ 
+ 
++_server_ready = threading.Event()
++_server_error = None
++
++
+ def server() -> Server:
++    if not _server_ready.is_set():
++        if _server_error is not None:
++            raise HTTPException(500, f"Model failed to load: {_server_error}")
++        if not _server_ready.wait(timeout=900):
++            raise HTTPException(503, "Model loading timed out (still starting)")
+     return app.state.server
+ 
+ 
++@app.get("/health")
++def health():
++    return {
++        "status": "ready" if _server_ready.is_set() else "loading",
++        "error": str(_server_error) if _server_error else None,
++    }
++
++
+ @app.post("/v1/systemone")
+ async def systemone(req: SystemOneRequest):
+     """TypeSafe-compatible endpoint: typed questions in, typed answers out, one prefill pass."""
+@@ -329,12 +346,22 @@
+     fused_default = dev == "cuda" and opts.fused is None
+     if fused_default: opts = replace(opts, fused=fused_available())   # serving default: fused Qwen3.5 kernels, ~1/3 less GPU time per batch (kev.fused_qwen35), when fla is installed; KEV_FUSED=0 to decline, KEV_FUSED=1 to insist
+     if opts.backend is None: opts = replace(opts, backend="auto")   # serving default: MLX for the hybrid Qwen3.5 checkpoints on Apple Silicon (LoadOptions.backend); KEV_BACKEND=torch to decline
+-    ck = Checkpoint(run)
+-    tok, model = ck.load(dev, opts)
+-    if fused_default and not opts.fused and model.hybrid: print("fused Qwen3.5 kernels off: install the flash-linear-attention version kev/fused_qwen35.py pins (FLA_VERSION) to turn them on")
+-    app.state.server = Server(ck, tok, model, dev)
+-    print(f"serving {ck.requested} ({ck.path}) on {dev} via {model.backend} ({model.dtype}) {a.host}:{a.port}; states over {SERVE_MAX_STATE:,} tokens "
+-          f"{'truncated (KEV_TRUNCATE_STATES=1)' if app.state.server.truncate_states else 'refused (422)'}")   # /v1/models reports the run as given, not the resolved cache path
++    def load_model_background():
++        global _server_error
++        try:
++            ck = Checkpoint(run)
++            tok, model = ck.load(dev, opts)
++            if fused_default and not opts.fused and model.hybrid:
++                print("fused Qwen3.5 kernels off: install the flash-linear-attention version kev/fused_qwen35.py pins (FLA_VERSION) to turn them on", flush=True)
++            app.state.server = Server(ck, tok, model, dev)
++            _server_ready.set()
++            print(f"serving {ck.requested} ({ck.path}) on {dev} via {model.backend} ({model.dtype}) {a.host}:{a.port}", flush=True)
++        except Exception as e:
++            _server_error = e
++            print(f"FATAL: Model loading failed: {e}", flush=True)
++            traceback.print_exc()
++
++    threading.Thread(target=load_model_background, daemon=True).start()
+     import uvicorn
+     uvicorn.run(app, host=a.host, port=a.port)
+ 

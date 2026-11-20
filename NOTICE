@@ -1,0 +1,30 @@
+kev-gcp-hosting
+
+Copyright 2026 Yudai Imai
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+This repository contains original work by Yudai Imai:
+  - cloudrun-proxy/        (Go proxy for Cloud Run)
+  - gce-t4-spot/           (provisioning scripts, systemd unit, test client)
+  - cloudrun-l4/           (Dockerfile, build config, entrypoint, test scripts)
+
+This repository also contains material derived from the following project:
+
+  Kev
+  https://github.com/jaredpalmer/kev
+  Copyright 2026 Jared Palmer
+  Licensed under the Apache License, Version 2.0
+
+Derived material:
+  - gce-t4-spot/server.py builds on kev.serve from the project above and
+    changes it (Spot preemption handling, idle shutdown, /ready, direct GPU
+    loading).
+  - cloudrun-l4/patches/async-init.patch is a modification of kev/serve.py
+    from the project above (background model loading and a /health endpoint).
+
+The Kev source code itself is not included. The build scripts fetch it from
+the upstream repository.
+
+Cold-start techniques in cloudrun-l4/ (GCSFuse buffered-read, Direct VPC
+egress, /dev/shm prefetch) follow the design of the Djev-run project.

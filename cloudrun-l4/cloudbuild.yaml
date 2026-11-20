@@ -1,0 +1,12 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args: ['build', '-t', '$_IMAGE_NAME', '--build-arg', 'KEV_REF=$_KEV_REF', '.']
+images:
+  - '$_IMAGE_NAME'
+options:
+  machineType: 'E2_HIGHCPU_8'
+  logging: CLOUD_LOGGING_ONLY
+substitutions:
+  _IMAGE_NAME: '<REGION>-docker.pkg.dev/<PROJECT_ID>/<REPOSITORY>/kev-serve:latest'
+  _KEV_REF: 'main'   # 実際は upstream のコミットを固定する
+timeout: '1800s'
